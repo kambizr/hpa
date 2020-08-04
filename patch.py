@@ -168,11 +168,14 @@ class Patch:
 
         comapc_rs = f'echo "compact_rs {compact},true" | habse shell'
         self.exec(comapc_rs)
-        result,error = self.exec(detailed_node)
-        pattern_DL = re.compile(r'(dataLocality=)(\d?)')
-        match_dl = re.search(pattern_DL,str(result))
+
         print(int(match_dl.group(2)))
-        while float(match_dl.group(2)) < 0.90:
+        while True :
+            result,error = self.exec(detailed_node)
+            pattern_DL = re.compile(r'(dataLocality=)(\d?)')
+            match_dl = re.search(pattern_DL,str(result))
+            if float(match_dl.group(2)) < 0.90:
+                break
             time.sleep(1)
         else:
             return True
