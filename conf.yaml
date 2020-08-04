@@ -1,0 +1,126 @@
+#patching commands
+patch:
+  kernel:
+    - sudo /box/bin/kernel_cleaner
+    - sudo yum clean all
+    - sudo yum install kernel kernel-headers -y
+  perf:
+    - sudo yum update perf -y
+  python-perf:
+    - sudo yum update python-perf -y
+  kernel-devl:
+    - sudo yum update kernel-devel -y
+  microcode_ctl:
+    - sudo yum update microcode_ctl -y
+validation:
+  kernel:
+    cmd: sudo yum check-update kernel kernel-headers kernel-firmware
+    msg: kernel
+  perf:
+    cmd: sudo yum check-update perf
+    msg: perf
+  python-perf:
+    cmd: sudo yum check-update python-perf
+    msg: python-perf
+  kernel-devl:
+    cmd: sudo yum check-update kernel-devel
+    msg: kernel-devel
+  microcode_ctl:
+    cmd: sudo yum check-update microcode_ctl
+    msg: microcode_ctl
+
+
+
+#decommission Verification
+decom_verify:
+  cmd: sudo /usr/local/bin/facter -p hadoop_hdfs_datanode_state
+  msg: decommissioned
+
+#pre commands for all datat node type with verification command and msg
+all_prep:
+  service:
+    mapreduce-tasktracker:
+      cmd: sudo /sbin/service hadoop-0.20-mapreduce-tasktracker stop
+      vrf: sudo /sbin/service hadoop-0.20-mapreduce-tasktracker status
+      msg: stop
+    hadoop-hdfs-datanode:
+      cmd: sudo /sbin/service hadoop-hdfs-datanode stop
+      vrf: sudo /sbin/service hadoop-hdfs-datanode status
+      msg: stop
+    hbase-regionserver:
+      cmd: sudo /sbin/service hbase-regionserver stop
+      vrf: sudo /sbin/service hbase-regionserver status
+      msg: stop
+
+#commands for specific data nodes
+node_prep_type:
+  note:
+    hbase-thrift:
+      cmd: sudo /sbin/service hbase-thrift stop
+      vrf: sudo /sbin/service hbase-thrift status
+      msg: stop
+  alf:
+    bifrost:
+      cmd: sudo /sbin/service bifrost stop
+      vrf: sudo /sbin/service bifrost status
+      msg: stop
+    bifrost-proxy:
+      cmd: sudo /sbin/service bifrost-proxy stop
+      vrf: sudo /sbin/service bifrost-proxy status
+      msg: stop
+    server-enabled:
+      cmd: sudo /box/bin/server-enabled disable --lock --comment "Kernel Patching"
+      vrf: sudo /box/bin/server-enabled status
+      msg: disabled
+
+#recommissioning  verification
+recom_exe:
+  cmd1:
+    cmd: sudo /usr/local/bin/facter -p hadoop_hdfs_datanode_running
+    msg: true
+  cmd2:
+    cmd: sudo /usr/local/bin/facter -p hadoop_hdfs_datanode_state
+    msg: normal
+
+
+
+#Post Patching commands for all Data nodes with verification and msg
+all_post:
+  service:
+    mapreduce-tasktracker:
+      cmd: sudo /sbin/service hadoop-0.20-mapreduce-tasktracker start
+      vrf: sudo /sbin/service hadoop-0.20-mapreduce-tasktracker status
+      msg: running
+    hadoop-hdfs-datanode:
+      cmd: sudo /sbin/service hadoop-hdfs-datanode start
+      vrf: sudo /sbin/service hadoop-hdfs-datanode status
+      msg: running
+    hbase-regionserver:
+      cmd: sudo /sbin/service hbase-regionserver start
+      vrf: sudo /sbin/service hbase-regionserver status
+      msg: running
+
+node_post_type:
+  note:
+    hbase-thrift:
+      cmd: sudo /sbin/service hbase-thrift restart
+      vrf: sudo /sbin/service hbase-thrift status
+      msg: running
+  alf:
+    bifrost:
+      cmd: sudo /sbin/service bifrost start
+      vrf: sudo /sbin/service bifrost status
+      msg: running
+    bifrost-proxy:
+      cmd: sudo /sbin/service bifrost-proxy start
+      vrf: sudo /sbin/service bifrost-proxy status
+      msg: running
+    server-enabled:
+      cmd: sudo /box/bin/server-enabled enable --unlock
+      vrf: sudo /box/bin/server-enabled status
+      msg: enabled
+
+
+cluster:
+  cluster_name:
+    - master
