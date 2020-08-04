@@ -21,8 +21,10 @@ This Script accept hostname and run the following steps:
 Developed by: Kambiz Rahmani
 '''
 class Patch:
-    def __init__(self,hostname):
+    def __init__(self,hostname,yes):
         self.hostname = hostname
+        self.yes = yes
+
 
     def ts(self):
         timestamp = time.time()
@@ -192,45 +194,55 @@ class Patch:
         puppet = 'sudo /box/bin/runpuppet -y'
         #read yaml config file
         config = self.yaml_conf()
-
+        status = False
+        decom = False
+        recom = False
         #################Pre patching####################
         #copy Kevin's script to the node to take snapshot
-        result,error = self.local_exec(sn_cp)
-        if error:
-            print(colored(f'{self.ts()}  [ERR] {error}','red'))
-        else:
-            print(f'{self.ts()}  [INFO] ToolBox-assembly-0.1.0-SNAPSHOT.jar Copied sucessfully')
-        result,error = self.local_exec(sn_exe_cp)
-        if error:
-            print(colored(f'{self.ts()}  [ERR] {error}','red'))
-        else:
-            print(f'{self.ts()}  [INFO] run.sh Copied sucessfully')
 
         #execute Kevin's script to make a snapshot
         result,error =  self.exec(config['recom_exe']['cmd2']['cmd'])
         if str(config['recom_exe']['cmd2']['msg']).lower() in str(result):
+            status = True
+            result,error = self.local_exec(sn_cp)
+            if error:
+                print(colored(f'{self.ts()}  [ERR] {error}','red'))
+            else:
+                print(f'{self.ts()}  [INFO] ToolBox-assembly-0.1.0-SNAPSHOT.jar Copied sucessfully')
+            result,error = self.local_exec(sn_exe_cp)
+            if error:
+                status = False
+                print(colored(f'{self.ts()}  [ERR] {error}','red'))
+            else:
+                print(f'{self.ts()}  [INFO] run.sh Copied sucessfully')
             result,error = self.exec("sh ~/run.sh")
             if result:
                 print(f'{self.ts()}  [INFO] Snapshot created sucessfully')
         else:
-            print(f'{self.ts()}  [INFO] Host is not in Noraml stage')
+            result,error = self.exec(config['decom_verify']['cmd'])
+            if config['decom_verify']['msg'] in result.lower():
+                print(f'{self.ts()}  [INFO] Host is Decommissioned')
+                decom = True
+            else:
+                decom = False
+                status = False
+                print(colored(f'{self.ts()}  [ERR]   {self.hostname} is not ready for patching please manually verify it ','red'))
 
         #Decommission the node
-
-        decom = False
-        i = 1
-        while i <= 3:
-            result,error  = self.local_exec(decom_cmd)
-            if '[INFO] SUCCESS! HCM decommissioning process for' in result or '[INFO] SUCCESS! HCM decommissioning process for' in error:
-                print(f'{self.ts()}  [INFO] Decommission command ran successfully')
-                decom = True
-                break
-            else:
-                print(colored(f'{self.ts()}  [WRN]  Retry NO.{i} of 3 to Recommisioning is failed','yellow'))
-                i += 1
-        if not decom:
-            print(colored(f'{self.ts()}  [ERR]   Script Exit Because Node could not be decommissioned','red'))
-            sys.exit(2)
+        if status and self.yes and not decom:
+            i = 1
+            while i <= 3:
+                result,error  = self.local_exec(decom_cmd)
+                if '[INFO] SUCCESS! HCM decommissioning process for' in result or '[INFO] SUCCESS! HCM decommissioning process for' in error:
+                    print(f'{self.ts()}  [INFO] Decommission command ran successfully')
+                    decom = True
+                    break
+                else:
+                    print(colored(f'{self.ts()}  [WRN]  Retry NO.{i} of 3 to Recommisioning is failed','yellow'))
+                    i += 1
+            if not decom:
+                print(colored(f'{self.ts()}  [ERR]   Script Exit Because Node could not be decommissioned','red'))
+                status = False
 
         # print(f'{self.ts()}  [INFO] Run the puppet')
         # result,error = self.exec(puppet)
@@ -240,194 +252,238 @@ class Patch:
         #     print(f'{self.ts()}  [INFO] Puppetrun fnished sucessfully ')
 
         # #run general prep commands:
-        prep_srvs = sn_exe = config['all_prep']['service'].keys()
-        for srv in prep_srvs:
-            cmd = config['all_prep']['service'][srv]['cmd']
-            vrf = config['all_prep']['service'][srv]['vrf']
-            msg =  config['all_prep']['service'][srv]['msg']
-            print(f'{self.ts()}  [INFO] RUN: {cmd} ')
-            result,error = self.exec(cmd)
-            if error:
-                print(colored(f'{self.ts()}  [ERR]  Error on {srv}:  {error} ','red'))
-            else:
-                result,error = self.exec(vrf)
-                time.sleep(2)
-                if msg in str(result):
-                    print(colored(f'{self.ts()}  [VRF]  {srv} verified for pre Patching','green'))
+        if decom and status:
+            prep_srvs = sn_exe = config['all_prep']['service'].keys()
+            for srv in prep_srvs:
+                cmd = config['all_prep']['service'][srv]['cmd']
+                vrf = config['all_prep']['service'][srv]['vrf']
+                msg =  config['all_prep']['service'][srv]['msg']
+                print(f'{self.ts()}  [INFO] RUN: {cmd} ')
+                result,error = self.exec(cmd)
+                if error:
+                    print(colored(f'{self.ts()}  [ERR]  Error on {srv}:  {error} ','red'))
                 else:
-                    print(colored(f'{self.ts()}  [ERR]  {srv} not verified for Pre-Patching Message:\n {result}','red'))
-
-        #execute special prep command for specific nodes
-        types =  config['node_prep_type']
-        for type in types.keys():
-            if type in self.hostname:
-                type_cmds = config['node_prep_type'][type].keys()
-                print(colored(f'{self.ts()}  [MSG]  it is {type} node ','cyan'))
-                for cmds in type_cmds:
-                    cmd = config['node_prep_type'][type][cmds]['cmd']
-                    vrf = config['node_prep_type'][type][cmds]['vrf']
-                    msg = config['node_prep_type'][type][cmds]['msg']
-                    print(f'{self.ts()}  [INFO] run {cmd} ')
-                    result,error = self.exec(cmd)
-                    if error:
-                        print(colored(f'{self.ts()}  [ERR]  ERROR on: {cmds}: {error} ','red'))
+                    result,error = self.exec(vrf)
+                    time.sleep(2)
+                    if msg in str(result):
+                        print(colored(f'{self.ts()}  [VRF]  {srv} verified for pre Patching','green'))
                     else:
-                        result,error = self.exec(vrf)
+                        print(colored(f'{self.ts()}  [ERR]  {srv} not verified for Pre-Patching Message:\n {result}','red'))
+
+            #execute special prep command for specific nodes
+            types =  config['node_prep_type']
+            for type in types.keys():
+                if type in self.hostname:
+                    type_cmds = config['node_prep_type'][type].keys()
+                    print(colored(f'{self.ts()}  [MSG]  it is {type} node ','cyan'))
+                    for cmds in type_cmds:
+                        cmd = config['node_prep_type'][type][cmds]['cmd']
+                        vrf = config['node_prep_type'][type][cmds]['vrf']
+                        msg = config['node_prep_type'][type][cmds]['msg']
+                        print(f'{self.ts()}  [INFO] run {cmd} ')
+                        result,error = self.exec(cmd)
                         if error:
-                            print(colored(f'{self.ts()}  [ERR]  Verification ERROR on: {cmds}: {error} ','red'))
+                            print(colored(f'{self.ts()}  [ERR]  ERROR on: {cmds}: {error} ','red'))
                         else:
-                            if msg in result:
-                                print(colored(f'{self.ts()}  [VRF]  {cmds} verified for pre Patching','green'))
+                            result,error = self.exec(vrf)
+                            if error:
+                                print(colored(f'{self.ts()}  [ERR]  Verification ERROR on: {cmds}: {error} ','red'))
                             else:
-                                print(colored(f'{self.ts()}  [ERR]  {cmds} not verified for Pre-Patching Message:\n {result}','red'))
+                                if msg in result:
+                                    print(colored(f'{self.ts()}  [VRF]  {cmds} verified for pre Patching','green'))
+                                else:
+                                    print(colored(f'{self.ts()}  [ERR]  {cmds} not verified for Pre-Patching Message:\n {result}','red'))
 
-        #Decomission verification
-        print(f'{self.ts()}  [INFO] Decommission in progress')
-        t =  0
-        while True:
-            if t == 7200:
-                print(colored(f'{self.ts()}  [ERR]  decommission Timeout  ','red'))
-                sys.exit(2)
-            result,error = self.exec(config['decom_verify']['cmd'])
-            if config['decom_verify']['msg'] in result.lower():
-                print(colored(f'{self.ts()}  [VFY]  Node verified: Decommissioned ','green'))
-                break
+        ####Decomission verification
+        if decom and status:
+            print(f'{self.ts()}  [INFO] Decommission in progress')
+            t =  0
+            while True:
+                if t == 7200:
+                    print(colored(f'{self.ts()}  [ERR]  decommission Timeout  ','red'))
+                    sys.exit(2)
+                result,error = self.exec(config['decom_verify']['cmd'])
+                if config['decom_verify']['msg'] in result.lower():
+                    print(colored(f'{self.ts()}  [VFY]  Node verified: Decommissioned ','green'))
+                    break
+                else:
+                    t =+1
+                    time.sleep(1)
+
+            # ######################Patching#######################
+            if self.yes:
+                self.patching()
             else:
-                t =+1
-                time.sleep(1)
+                ans = input(f"do you want to patch {self.hostname}(y/n):")
+                if ans.lower() == 'y':
+                    self.patching()
+                else:
+                    print(f'{self.ts()}  [INFO] {self.hostname} Can not be patch at this momemnt ')
 
-        # ######################Patching#######################
-        ans = input("do you want patch:")
-        if ans != 'y':
-            sys.exit()
-        self.patching()
 
         ###################Rebooting####################
+        if decom and status and self.yes:
+            print(colored(f'{self.ts()}  [WRN]  reboot {self.hostname}','yellow'))
+            result = self.reboot()
+            if result :
+                while True:
+                    time.sleep(5)
+                    result,error = self.exec('uname -r')
+                    if not error:
+                        break
 
-        print(colored(f'{self.ts()}  [WRN]  reboot {self.hostname}','yellow'))
-        ans = input("do you want reboot:")
-        if ans != 'y':
-            sys.exit()
-        result = self.reboot()
-        if result :
-            while True:
-                time.sleep(5)
-                result,error = self.exec('uname -r')
-                if not error:
-                    break
-
-            print(f'{self.ts()}  [INFO] {self.hostname} rebooted successfully')
-
+                print(f'{self.ts()}  [INFO] {self.hostname} rebooted successfully')
+        elif: decom and status and not self.yes:
+            ans = input(f"do you want to patch {self.hostname}(y/n):")
+            if ans.lower() == 'y':
+                print(colored(f'{self.ts()}  [WRN]  reboot {self.hostname}','yellow'))
+                result = self.reboot()
+                if result :
+                    while True:
+                        time.sleep(5)
+                        result,error = self.exec('uname -r')
+                        if not error:
+                            break
 
         ####################### Post patching#########################
         #patching validation
-        self.validation(config['validation'])
+        if status and decom:
+            self.validation(config['validation'])
 
 
-        ############recommission the node
-        ans = input("do you want recommisiion:")
-        if ans != 'y':
-            sys.exit()
-        i = 1
-        recom = False
-        while i <= 3:
-            result,error  = self.local_exec(recom_cmd)
-            if 'SUCCESS! HCM recommissioning process for' in result or 'SUCCESS! HCM recommissioning process for' in error:
-                print(f'{self.ts()}  [INFO]  Recommission command finished successfully')
-                print(f'{self.ts()}  [INFO] sleep 2 mins then Run the puppet')
-                time.sleep(120)
-                print(f'{self.ts()}  [INFO] Puppet is running...')
-                result,error = self.exec(puppet)
-                if error:
-                    print(colored(f'{self.ts()}  [ERR] {error}','red'))
+        ############recommission the node#######################
+        if self.yes and status and decom:
+            i = 1
+            while i <= 3:
+                result,error  = self.local_exec(recom_cmd)
+                if 'SUCCESS! HCM recommissioning process for' in result or 'SUCCESS! HCM recommissioning process for' in error:
+                    print(f'{self.ts()}  [INFO]  Recommission command finished successfully')
+                    print(f'{self.ts()}  [INFO] sleep 2 mins then Run the puppet')
+                    time.sleep(120)
+                    print(f'{self.ts()}  [INFO] Puppet is running...')
+                    result,error = self.exec(puppet)
+                    if error:
+                        print(colored(f'{self.ts()}  [ERR] {error}','red'))
+                    else:
+                        print(f'{self.ts()}  [INFO] Puppetrun fnished sucessfully ')
+                    recom = True
+                    break
                 else:
-                    print(f'{self.ts()}  [INFO] Puppetrun fnished sucessfully ')
-                recom = True
-                break
-            else:
-                print(colored(f'{self.ts()}  [WRN]  Retry NO.{i} of 3 to Recommisioning is failed','yellow'))
-                i += 1
-        if not recom:
-            print(colored(f'{self.ts()}  [ERR]   Script Exit Because Node could not be decommissioned','red'))
-            sys.exit(2)
+                    print(colored(f'{self.ts()}  [WRN]  Retry NO.{i} of 3 to Recommisioning is failed','yellow'))
+                    i += 1
+            if not recom:
+                print(colored(f'{self.ts()}  [ERR]   Script Exit Because Node could not be decommissioned','red'))
+                status = False
+        elif status and decom and not self.yes:
+            ans = input(f"do you want to recommission {self.hostname}(y/n):")
+            if ans.lower() == 'y':
+                i = 1
+                while i <= 3:
+                    result,error  = self.local_exec(recom_cmd)
+                    if 'SUCCESS! HCM recommissioning process for' in result or 'SUCCESS! HCM recommissioning process for' in error:
+                        print(f'{self.ts()}  [INFO]  Recommission command finished successfully')
+                        print(f'{self.ts()}  [INFO] sleep 2 mins then Run the puppet')
+                        time.sleep(120)
+                        print(f'{self.ts()}  [INFO] Puppet is running...')
+                        result,error = self.exec(puppet)
+                        if error:
+                            print(colored(f'{self.ts()}  [ERR] {error}','red'))
+                        else:
+                            print(f'{self.ts()}  [INFO] Puppetrun fnished sucessfully ')
+                        recom = True
+                        break
+                    else:
+                        print(colored(f'{self.ts()}  [WRN]  Retry NO.{i} of 3 to Recommisioning is failed','yellow'))
+                        i += 1
+                if not recom:
+                    print(colored(f'{self.ts()}  [ERR]   Script Exit Because Node could not be decommissioned','red'))
+                    status = False
 
         # #Start Services
-        post_srvs = sn_exe = config['all_post']['service'].keys()
-        for srv in post_srvs:
-            cmd = config['all_post']['service'][srv]['cmd']
-            vrf = config['all_post']['service'][srv]['vrf']
-            msg =  config['all_post']['service'][srv]['msg']
-            print(f'{self.ts()}  [INFO] RUN: {cmd} ')
-            result,error = self.exec(cmd)
-            if error:
-                print(colored(f'{self.ts()}  [ERR]  Error on {srv}:  {error} ','red'))
-            else:
-                result,error = self.exec(vrf)
-                time.sleep(2)
-                if msg in str(result):
-                    print(colored(f'{self.ts()}  [VRF]  {srv} verified for Post Patching','green'))
+        if status and recom:
+            post_srvs = sn_exe = config['all_post']['service'].keys()
+            for srv in post_srvs:
+                cmd = config['all_post']['service'][srv]['cmd']
+                vrf = config['all_post']['service'][srv]['vrf']
+                msg =  config['all_post']['service'][srv]['msg']
+                print(f'{self.ts()}  [INFO] RUN: {cmd} ')
+                result,error = self.exec(cmd)
+                if error:
+                    print(colored(f'{self.ts()}  [ERR]  Error on {srv}:  {error} ','red'))
                 else:
-                    print(colored(f'{self.ts()}  [ERR]  {srv} not verified for Post Patching Message:\n {result}','red'))
-
-        types =  config['node_post_type']
-        for type in types.keys():
-            if type in self.hostname:
-                type_cmds = config['node_post_type'][type].keys()
-                print(colored(f'{self.ts()}  [MSG]  it is {type} node ','cyan'))
-                for cmds in type_cmds:
-                    cmd = config['node_post_type'][type][cmds]['cmd']
-                    vrf = config['node_post_type'][type][cmds]['vrf']
-                    msg = config['node_post_type'][type][cmds]['msg']
-                    print(f'{self.ts()}  [INFO] run {cmd} ')
-                    result,error = self.exec(cmd)
-                    if error:
-                        print(colored(f'{self.ts()}  [ERR]  ERROR on: {cmds}: {error} ','red'))
+                    result,error = self.exec(vrf)
+                    time.sleep(2)
+                    if msg in str(result):
+                        print(colored(f'{self.ts()}  [VRF]  {srv} verified for Post Patching','green'))
                     else:
-                        result,error = self.exec(vrf)
+                        print(colored(f'{self.ts()}  [ERR]  {srv} not verified for Post Patching Message:\n {result}','red'))
+
+            types =  config['node_post_type']
+            for type in types.keys():
+                if type in self.hostname:
+                    type_cmds = config['node_post_type'][type].keys()
+                    print(colored(f'{self.ts()}  [MSG]  it is {type} node ','cyan'))
+                    for cmds in type_cmds:
+                        cmd = config['node_post_type'][type][cmds]['cmd']
+                        vrf = config['node_post_type'][type][cmds]['vrf']
+                        msg = config['node_post_type'][type][cmds]['msg']
+                        print(f'{self.ts()}  [INFO] run {cmd} ')
+                        result,error = self.exec(cmd)
                         if error:
-                            print(colored(f'{self.ts()}  [ERR]  Verification ERROR on: {cmds}: {error} ','red'))
+                            print(colored(f'{self.ts()}  [ERR]  ERROR on: {cmds}: {error} ','red'))
                         else:
-                            if msg in result:
-                                print(colored(f'{self.ts()}  [VRF]  {cmds} verified for post patching','green'))
+                            result,error = self.exec(vrf)
+                            if error:
+                                print(colored(f'{self.ts()}  [ERR]  Verification ERROR on: {cmds}: {error} ','red'))
                             else:
-                                print(colored(f'{self.ts()}  [ERR]  {cmds} not verified for post patching Message:\n {result}','red'))
+                                if msg in result:
+                                    print(colored(f'{self.ts()}  [VRF]  {cmds} verified for post patching','green'))
+                                else:
+                                    print(colored(f'{self.ts()}  [ERR]  {cmds} not verified for post patching Message:\n {result}','red'))
 
 
-        # Recommission verification
-        vrf1 = False
-        vrf2 = False
-        i = 1
+            # Recommission verification
+            vrf1 = False
+            vrf2 = False
+            i = 1
 
-        while i <= 3:
-            print(f'{self.ts()}  [INFO] Retry: {i} Recommissioning Verifivation')
-            if not vrf1:
-                result,error =  self.exec(config['recom_exe']['cmd1']['cmd'])
-                if str(config['recom_exe']['cmd1']['msg']).lower() in str(result):
-                    print(colored(f'{self.ts()}  [VRF]  recommissioning verified 1 of 2 ','green'))
-                    vrf1 = True
-                else:
-                    print(colored(f'{self.ts()}  [ERR]  Retry NO.{i} recommissioning verified 1 of 2 failed ','red'))
-            if not vrf2:
-                result,error =  self.exec(config['recom_exe']['cmd2']['cmd'])
-                if str(config['recom_exe']['cmd2']['msg']).lower() in str(result):
-                    vrf2 =  True
-                    print(colored(f'{self.ts()}  [VRF]  recommissioning verified 2 of 2 ','green'))
-                else:
-                    print(colored(f'{self.ts()}  [ERR]  Retry NO.{i} recommissioning verified 2 of 2 failed ','red'))
-            if vrf1 and vrf2:
-                print(colored(f'{self.ts()}  [VRF]  {self.hostname} verified: Recommissioned ','green'))
-                break
-            i += 1
-        if not vrf1 or not vrf2:
-             print(colored(f'{self.ts()}  [ERR]  Node recommissio Failed ','red'))
-             sys.exit(2)
-        ans = input("do you want to move regions:")
-        if ans != 'y':
-            sys.exit()
-        DataLocality = self.data_locality()
-        if DataLocality:
-            print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
-
+            while i <= 3:
+                print(f'{self.ts()}  [INFO] Retry: {i} Recommissioning Verifivation')
+                if not vrf1:
+                    result,error =  self.exec(config['recom_exe']['cmd1']['cmd'])
+                    if str(config['recom_exe']['cmd1']['msg']).lower() in str(result):
+                        print(colored(f'{self.ts()}  [VRF]  recommissioning verified 1 of 2 ','green'))
+                        vrf1 = True
+                    else:
+                        print(colored(f'{self.ts()}  [ERR]  Retry NO.{i} recommissioning verified 1 of 2 failed ','red'))
+                if not vrf2:
+                    result,error =  self.exec(config['recom_exe']['cmd2']['cmd'])
+                    if str(config['recom_exe']['cmd2']['msg']).lower() in str(result):
+                        vrf2 =  True
+                        print(colored(f'{self.ts()}  [VRF]  recommissioning verified 2 of 2 ','green'))
+                    else:
+                        print(colored(f'{self.ts()}  [ERR]  Retry NO.{i} recommissioning verified 2 of 2 failed ','red'))
+                if vrf1 and vrf2:
+                    print(colored(f'{self.ts()}  [VRF]  {self.hostname} verified: Recommissioned ','green'))
+                    break
+                i += 1
+            if not vrf1 or not vrf2:
+                 print(colored(f'{self.ts()}  [ERR]  Node recommissio Failed ','red'))
+                 status = False
+        if status and recom and self.yes:
+            DataLocality = self.data_locality()
+            if DataLocality:
+                print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
+        elif status and recom and not self.yes:
+            ans = input(f"do you want to restore region snapshots on {self.hostname}(y/n):")
+            if ans.lower() == 'y':
+                DataLocality = self.data_locality()
+                if DataLocality:
+                    print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
+        if status:
+            return True
+        else:
+            return False
 
 
 def main():
