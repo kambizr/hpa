@@ -615,6 +615,7 @@ class Patch:
             if DataLocality:
                 print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
                 self.log(f'server has been Patched successfully','info')
+                status = True
         elif status and recom and not self.yes:
             ans = input(f"do you want to restore region snapshots on {self.hostname}(y/n):")
             if ans.lower() == 'y':
@@ -622,6 +623,7 @@ class Patch:
                 if DataLocality:
                     print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
                     self.log(f'server has been Patched successfully','info')
+                    status = True
 
         if status:
             return True
