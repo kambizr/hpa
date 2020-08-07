@@ -29,7 +29,10 @@ validation:
     cmd: sudo yum check-update microcode_ctl
     msg: microcode_ctl
 
-
+sensu:
+  add: f'snooze add -h {hostname} -d 1h -r "Kernel Patching" -f'
+  list: f'snooze list -h {hostname}'
+  remove: f'snooze remove -h {hostname}'
 
 #decommission Verification
 decom_verify:
@@ -122,5 +125,58 @@ node_post_type:
 
 
 cluster:
-  cluster_name:
-    - master
+  cluster_alf:
+    vsv1:
+      name: hadoop_alf_vsv1
+      master: alf-name6004.vsv1.box.net
+    lv7:
+      name: hadoop_alfd_lv7
+      master: alf-name3006.lv7.box.net:60010/
+    uslasb:
+      name: hadoop_alf_uslasb
+      master: alf-name00004.us-las-b.dc001.prod.box.net
+    usrnoa:
+      name: hadoop_alf_usrnoa
+      master: alf-name00011.us-rno-a.dc001.prod.box.net
+
+  # cluster_jmd:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
+  #
+  # cluster_note:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
+  #
+  # cluster_ss:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
+  #
+  # cluster_ekm:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
+  #
+  # cluster_sfi:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
+  #
+  # cluster_dbops_cm:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
+  #
+  # cluster_dbops_meta:
+  #   vsv1:
+  #   lv7:
+  #   uslasb:
+  #   usrnoa:
