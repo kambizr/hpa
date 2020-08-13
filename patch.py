@@ -28,9 +28,12 @@ class Patch:
     def __init__(self,hostname,yes):
         self.hostname = hostname
         self.yes = yes
-    def log(self,msg,mode):
 
-        logfile = './logs/'+self.hostname+'.log'
+    def log(self,msg,mode,logfile=None):
+        if not logfile:
+            logfile = './logs/'+self.hostname+'.log'
+        else:
+            logfile = './logs/'+logfile
         logging.basicConfig(filename = logfile,
                 format='%(asctime)s  [%(levelname)s]  %(message)s',
                 datefmt='%m/%d/%Y %I:%M:%S %p',level=logging.INFO)
@@ -142,7 +145,7 @@ class Patch:
                             self.log(f'{check} Needs Update try to update it','wrn')
                             break
                 else:
-                    print(f'{self.ts()}  [INFO]  {self.hostname} {check} is not installed in this server')
+                    print(f'{self.ts()}  [INFO] {self.hostname} {check} is not installed in this server')
                     self.log(f'{check} is not installed in this server','info')
             else:
                 print(colored(f'{self.ts()}  [ERR]  {self.hostname} ERROR: {error}','red'))
@@ -256,7 +259,7 @@ class Patch:
         #copy Kevin's script to the node to take snapshot
 
         #execute Kevin's script to make a snapshot
-        print(f'{self.ts()}  [INFO] Verify Status of {self.hostname}')
+        print(f'{self.ts()}  [INFO] {self.hostname} Status verifivation')
         self.log(f'Verify Status','info')
         result,error =  self.exec(config['recom_exe']['cmd2']['cmd'])
         if str(config['recom_exe']['cmd2']['msg']).lower() in str(result):
@@ -316,7 +319,7 @@ class Patch:
                         decom = True
                         break
                     else:
-                        print(colored(f'{self.ts()}  [WRN]  {self.hostname} Retry NO.{i} of 3 to Recommisioning is failed','yellow'))
+                        print(colored(f'{self.ts()}  [WRN]  {self.hostname} Retry NO.{i} of 3 to Decommission is failed','yellow'))
                         self.log(f'Retry NO.{i} of 3 to Recommisioning is failed','wrn')
                         i += 1
                 if not decom:
@@ -493,7 +496,7 @@ class Patch:
                     self.log(f'Recommission in progress','info')
                     result,error  = self.local_exec(recom_cmd)
                     if 'SUCCESS! HCM recommissioning process for' in result or 'SUCCESS! HCM recommissioning process for' in error:
-                        print(f'{self.ts()}  [INFO]  {self.hostname} Recommission command finished successfully')
+                        print(f'{self.ts()}  [INFO] {self.hostname} Recommission command finished successfully')
                         self.log(f'Recommission command finished successfully','info')
                         print(f'{self.ts()}  [INFO] {self.hostname} sleep 2 mins then Run the puppet')
                         self.log(f'sleep 2 mins then Run the puppet','info')
@@ -611,6 +614,9 @@ class Patch:
                  self.log(f'script exit because node recommission Failed','crt')
                  status = False
         if status and recom and self.yes:
+            print(f'{self.ts()}  {self.hostname} [INFO] Recommission in progress')
+            self.log(f'Recommission in progress','info')
+            result,error  = self.local_exec(recom_cmd)
             DataLocality = self.data_locality()
             if DataLocality:
                 print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
@@ -619,6 +625,9 @@ class Patch:
         elif status and recom and not self.yes:
             ans = input(f"do you want to restore region snapshots on {self.hostname}(y/n):")
             if ans.lower() == 'y':
+                print(f'{self.ts()}  {self.hostname} [INFO] Recommission in progress')
+                self.log(f'Recommission in progress','info')
+                result,error  = self.local_exec(recom_cmd)
                 DataLocality = self.data_locality()
                 if DataLocality:
                     print(colored(f'{self.ts()}  [END]  {self.hostname} has been Patched successfully','green'))
@@ -629,57 +638,3 @@ class Patch:
             return True
         else:
             return False
-
-
-def main():
-    try:
-        start = time.time()
-        yes = False
-        parser =ArgumentParser(description='HBase data node patching automation',
-                epilog='Enjoy the program! :)')
-
-        parser.add_argument('--host',help='Just Run the scipt on one host')
-        parser.add_argument('--file','-f',help='accept host file and run one node per cluster')
-        parser.add_argument('--yes','-y',action="store_true", default=False,help='Skip all confirmation question and execute the script')
-        args = parser.parse_args()
-        if args.yes:
-            yes = True
-        else:
-            print(colored(f'###Please watch the script it will ask you questions otherwise choose -y or --yes','yellow', 'on_blue',['bold','blink']))
-        if args.host and not args.file:
-            if 'box.net' not in str(args.host):
-                print(colored("Please add your FQDN as an argument e.g. # python3 patch.py jm-data3154.lv7.box.net [-y]",'red'))
-            else:
-                host = args.host
-                obj = Patch(str(args.host),yes)
-                status = obj.patch()
-
-
-        if args.file and not args.host:
-            procs=[]
-            yes = True
-            file = args.file
-            if os.path.exists(file):
-                with open(file) as f:
-                    hosts = f.readlines()
-                for host in hosts:
-                    host = host.strip()
-                    # obj = Patch(host,yes)
-                    # procs.append(mp.Process(target=obj.patch))
-                    # for proc in procs:
-                    #     proc.start()
-
-        end = time.time()
-        total = end - start
-        if total > 60:
-            total = int(total/60)
-            print(colored(f'###Execution time is {total} Minutes for {host}###','white', 'on_blue',['bold','blink']))
-        else:
-            print(colored(f'###Execution time is {int(total)} seconds for {host}###','white', 'on_blue',['bold','blink']))
-
-    except KeyboardInterrupt:
-        print("Interrupted")
-
-
-if __name__ == "__main__":
-    main()
