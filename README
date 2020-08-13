@@ -1,0 +1,3 @@
+Examples:
+hpa.py --host <hostname> [-y]
+hpa.py -f <filename> 
