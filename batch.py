@@ -39,6 +39,9 @@ class Batch:
 
 
     def batch_patch(self,host):
+        timestamp = time.time()
+        dt = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+        logfile  = 'batch-'+str(dt)+'.log'
         yes = True
         status = False
         start = time.time()
@@ -49,32 +52,32 @@ class Batch:
         else:
             state = False
             obj = Patch(str(host),yes)
-            obj.log(f' {host} Start Script','info','batch.log')
+            obj.log(f'Start Script','info',logfile)
             print(f'\n\n###############{host}###############\n')
             print(f'{self.ts()}  [INFO] {host}: Started')
-            obj.log(f' {host} Checking Sensu status','info','batch.log')
+            obj.log(f'Checking Sensu status','info',logfile)
             print(f'{self.ts()}  [INFO] {host} Checking Sensu status')
             result,error = self.snooze(host,'list')
             if not error:
                 if 'No matching entries found.' in result:
                     print(f'{self.ts()}  [INFO] {host} Snooze the host')
-                    obj.log(f' {host} Snooze the host','info','batch.log')
+                    obj.log(f'Snooze the host','info',logfile)
                     result,error = self.snooze(host,'add')
                     if 'INFO: Sensu silence entry created successfully' in error or 'INFO: Sensu silence entry created successfully' in result:
-                        obj.log(f' {host} Snooze added to Sensu','info','batch.log')
+                        obj.log(f'Snooze added to Sensu','info',logfile)
                         print(f'{self.ts()}  [INFO] {host} Snooze added to Sensu')
                         state = True
                 elif 'kernel patching' not in result.lower() and 'No matching entries found.' not in result :
-                    obj.log(f' {host} This host has been silent, might be decommission or under maintenance ','crt','batch.log')
-                    obj.log(f' {host} This host needs manual patching','crt','batch.log')
+                    obj.log(f'This host has been silent, might be decommission or under maintenance ','crt',logfile)
+                    obj.log(f'This host needs manual patching','crt',logfile)
                     print(colored(f"{host} has been silent, might be decommission or under maintenance",'red'))
                     print(colored(f"{host} needs manual patching",'white', 'on_red',['bold','blink']))
                     sys.exit(2)
                 elif 'kernel patching' in result:
-                    obj.log(f' {host} Host already snoozed for Kernel Patching','info','batch.log')
+                    obj.log(f'Host already snoozed for Kernel Patching','info',logfile)
                     print(f'{self.ts()}  [INFO] {host} already snoozed for Kernel Patching')
                     state = True
-        obj.log(f' {host} Waiting till host be silent in Sensu','info','batch.log')
+        obj.log(f'Waiting till host be silent in Sensu','info',logfile)
         print(f'{self.ts()}  [INFO] {host} Waiting till host be silent in Sensu')
         while True:
             result,error = self.snooze(host,'list')
@@ -82,7 +85,7 @@ class Batch:
                 continue
             else:
                 state = True
-                obj.log(f' {host} Host snoozed and ready for Kernel Patching','info','batch.log')
+                obj.log(f'Host snoozed and ready for Kernel Patching','info',logfile)
                 print(f'{self.ts()}  [INFO] {host}  snoozed and ready for Kernel Patching')
                 break
         if state:
@@ -92,25 +95,25 @@ class Batch:
         total = end - start
 
         if state and status:
-            obj.log(f' {host} Patching finished','info','batch.log')
+            obj.log(f'Patching finished','info',logfile)
             if total > 60:
                 total = int(total/60)
                 print(colored(f'###Execution time is {total} Minutes for {host}###','white', 'on_blue',['bold','blink']))
-                obj.log(f' {host} Patching finished','info','batch.log')
-                obj.log(f' {host} Execution time is {total} Minutes','info','batch.log')
+                obj.log(f'Patching finished','info',logfile)
+                obj.log(f'Execution time is {total} Minutes','info',logfile)
             else:
                 print(colored(f'###Execution time is {int(total)} seconds for {host}###','white', 'on_blue',['bold','blink']))
-                obj.log(f' {host} Execution time is {total} seconds','info','batch.log')
+                obj.log(f'Execution time is {total} seconds','info',logfile)
             del obj
             return True
         else:
-            obj.log(f' {host} Patching failed','crt','batch.log')
+            obj.log(f'Patching failed','crt',logfile)
             if total > 60:
                 total = int(total/60)
                 print(colored(f'###Execution time is {total} Minutes for {host}###','white', 'on_red',['bold','blink']))
-                obj.log(f' {host} Execution time is {total} Minutes','info','batch.log')
+                obj.log(f'Execution time is {total} Minutes','info',logfile)
             else:
                 print(colored(f'###Execution time is {int(total)} seconds for {host}###','white', 'on_red',['bold','blink']))
-                obj.log(f' {host}Execution time is {total} seconds','info','batch.log')
+                obj.log(f' {host}Execution time is {total} seconds','info',logfile)
             del obj
             return False

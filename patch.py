@@ -34,14 +34,15 @@ class Patch:
             logfile = './logs/'+self.hostname+'.log'
         else:
             logfile = './logs/'+logfile
+        msg_complete = f'{self.hostname}  {msg}'
         logging.basicConfig(filename = logfile,
                 format='%(asctime)s  [%(levelname)s]  %(message)s',
                 datefmt='%m/%d/%Y %I:%M:%S %p',level=logging.INFO)
-        if 'info' in mode: logging.info(msg)
-        if 'wrn' in mode: logging.warning(msg)
-        if 'err' in mode: logging.error(msg)
-        if 'crt' in mode: logging.critical(msg)
-        if 'dbg' in mode: logging.debug(msg)
+        if 'info' in mode: logging.info(msg_complete)
+        if 'wrn' in mode: logging.warning(msg_complete)
+        if 'err' in mode: logging.error(msg_complete)
+        if 'crt' in mode: logging.critical(msg_complete)
+        if 'dbg' in mode: logging.debug(msg_complete)
 
     def ts(self):
         timestamp = time.time()
@@ -82,6 +83,9 @@ class Patch:
         error = ouput.stderr.read().decode('utf-8')
         result = ouput.stdout.read().decode('utf-8')
         return result,error
+
+    def dead_pool(self):
+        pass
 
 
     def reboot(self):
